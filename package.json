@@ -1,0 +1,21 @@
+{
+  "name": "hw-payment",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "zalopay": "nodemon zalopay/server.js",
+    "vnpay": "nodemon vnpay/server.js",
+    "paypal": "nodemon paypal/server.js",
+    "stripe": "nodemon stripe/server.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}
