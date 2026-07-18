@@ -1,17 +1,14 @@
 {
-  "name": "hw-payment",
+  "name": "hw-payment-backend",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "zalopay": "nodemon zalopay/server.js",
-    "vnpay": "nodemon vnpay/server.js",
-    "paypal": "nodemon paypal/server.js",
-    "stripe": "nodemon stripe/server.js"
+    "dev": "nodemon index.js",
+    "start": "node index.js"
   },
   "author": "",
   "license": "ISC",
-  "description": "",
+  "description": "Backend tổng hợp tất cả phương thức thanh toán",
   "dependencies": {
     "axios": "^1.18.1",
     "crypto-js": "^4.2.0",
