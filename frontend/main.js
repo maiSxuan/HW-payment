@@ -170,6 +170,32 @@ payButton.onclick = async () => {
   resetButton.disabled = true;
   debugEl.textContent = "";
 
+  if (selectedMethod === "vnpay") {
+    try {
+      const res = await fetch("/vnpay/create-order", { method: "POST" });
+      const data = await res.json();
+      debugEl.textContent = JSON.stringify(data, null, 2);
+
+      if (!res.ok) throw new Error(data.message || "Lỗi tạo đơn VNPay");
+      if (!data.paymentUrl) throw new Error("Không có paymentUrl từ VNPay");
+
+      // Lưu lại để khi VNPay redirect về, ta biết trước đó đang chờ đơn nào
+      sessionStorage.setItem("vnpay_pending_txnRef", data.txnRef);
+
+      statusEl.innerHTML = `<strong>Đang chuyển đến VNPay...</strong>`;
+      statusEl.style.borderColor = "#faad14";
+
+      // VNPay yêu cầu điều hướng cả trang sang cổng thanh toán của họ
+      window.location.href = data.paymentUrl;
+    } catch (err) {
+      statusEl.innerHTML = `<strong>Lỗi:</strong> ${err.message}`;
+      statusEl.style.borderColor = "#ff4d4f";
+      payButton.disabled = false;
+      resetButton.disabled = false;
+    }
+    return;
+  }
+
   // stripe
   if (selectedMethod === "stripe") {
     try {
@@ -233,7 +259,7 @@ payButton.onclick = async () => {
     }
     return;
   }
-// end paypal selection
+  // end paypal selection
 
   if (selectedMethod !== "zalopay") {
     statusEl.innerHTML = `<strong>${selectedMethod.toUpperCase()}</strong> hiện chưa xử lý.`;
@@ -577,7 +603,6 @@ async function pollStatus(apptransid) {
             statusData.status === "PROCESSING" ||
             statusData.isprocessing === true
           ) {
-            statusEl.style.display = "block";
             statusEl.innerHTML = `<strong>Giao dịch đang xử lý</strong> Vui lòng chờ callback.`;
             statusEl.style.borderColor = "#faad14";
             // tiếp tục vòng lặp
@@ -602,6 +627,78 @@ async function pollStatus(apptransid) {
 
 statusEl.innerHTML = "<strong>Trạng thái:</strong> Chưa chọn phương thức.";
 orderUrlEl.innerHTML = "";
+
+// Xử lý khi VNPay redirect trình duyệt quay lại frontend (?vnpay_status=...&vnpay_txnRef=...)
+(function handleVNPayReturn() {
+  const params = new URLSearchParams(window.location.search);
+  const vnpayStatus = params.get("vnpay_status");
+  if (!vnpayStatus) return;
+
+  const expectedTxnRef = sessionStorage.getItem("vnpay_pending_txnRef");
+  const returnedTxnRef = params.get("vnpay_txnRef");
+  sessionStorage.removeItem("vnpay_pending_txnRef");
+
+  // Xóa query string khỏi URL để tránh xử lý lại khi reload
+  window.history.replaceState({}, document.title, window.location.pathname);
+
+  if (vnpayStatus === "success") {
+    if (expectedTxnRef && returnedTxnRef && expectedTxnRef !== returnedTxnRef) {
+      statusEl.innerHTML =
+        "<strong>Cảnh báo:</strong> Mã giao dịch trả về không khớp.";
+      statusEl.style.borderColor = "#ff4d4f";
+      return;
+    }
+    showSuccessScreen();
+  } else if (vnpayStatus === "invalid") {
+    statusEl.innerHTML =
+      "<strong>Lỗi:</strong> Chữ ký xác thực từ VNPay không hợp lệ.";
+    statusEl.style.borderColor = "#ff4d4f";
+  } else if (vnpayStatus === "error") {
+    statusEl.innerHTML =
+      "<strong>Lỗi:</strong> Không xác thực được phản hồi từ VNPay.";
+    statusEl.style.borderColor = "#ff4d4f";
+  } else {
+    statusEl.innerHTML = "<strong>Thanh toán thất bại</strong> qua VNPay.";
+    statusEl.style.borderColor = "#ff4d4f";
+    resetButton.disabled = false;
+  }
+})();
+
+// Xử lý khi VNPay redirect trình duyệt quay lại frontend (?vnpay_status=...&vnpay_txnRef=...)
+(function handleVNPayReturn() {
+  const params = new URLSearchParams(window.location.search);
+  const vnpayStatus = params.get("vnpay_status");
+  if (!vnpayStatus) return;
+
+  const expectedTxnRef = sessionStorage.getItem("vnpay_pending_txnRef");
+  const returnedTxnRef = params.get("vnpay_txnRef");
+  sessionStorage.removeItem("vnpay_pending_txnRef");
+
+  // Xóa query string khỏi URL để tránh xử lý lại khi reload
+  window.history.replaceState({}, document.title, window.location.pathname);
+
+  if (vnpayStatus === "success") {
+    if (expectedTxnRef && returnedTxnRef && expectedTxnRef !== returnedTxnRef) {
+      statusEl.innerHTML =
+        "<strong>Cảnh báo:</strong> Mã giao dịch trả về không khớp.";
+      statusEl.style.borderColor = "#ff4d4f";
+      return;
+    }
+    showSuccessScreen();
+  } else if (vnpayStatus === "invalid") {
+    statusEl.innerHTML =
+      "<strong>Lỗi:</strong> Chữ ký xác thực từ VNPay không hợp lệ.";
+    statusEl.style.borderColor = "#ff4d4f";
+  } else if (vnpayStatus === "error") {
+    statusEl.innerHTML =
+      "<strong>Lỗi:</strong> Không xác thực được phản hồi từ VNPay.";
+    statusEl.style.borderColor = "#ff4d4f";
+  } else {
+    statusEl.innerHTML = "<strong>Thanh toán thất bại</strong> qua VNPay.";
+    statusEl.style.borderColor = "#ff4d4f";
+    resetButton.disabled = false;
+  }
+})();
 
 // Gọi trực tiếp thay vì DOMContentLoaded vì Vite ESModule script đã được defer tự động
 handleStripeReturn();

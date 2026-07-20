@@ -10,12 +10,12 @@ async function getAccessToken() {
 
   if (!PAYPAL_CLIENT_ID || !PAYPAL_SECRET) {
     throw new Error(
-      "Thiếu PAYPAL_CLIENT_ID hoặc PAYPAL_SECRET trong biến môi trường"
+      "Thiếu PAYPAL_CLIENT_ID hoặc PAYPAL_SECRET trong biến môi trường",
     );
   }
 
   const basicAuth = Buffer.from(
-    `${PAYPAL_CLIENT_ID}:${PAYPAL_SECRET}`
+    `${PAYPAL_CLIENT_ID}:${PAYPAL_SECRET}`,
   ).toString("base64");
 
   const response = await fetch(`${PAYPAL_API_BASE}/v1/oauth2/token`, {
@@ -67,8 +67,8 @@ const createPayPalRouter = () => {
             },
           ],
           application_context: {
-            return_url: `${process.env.FRONTEND_URL}?method=paypal`,
-            cancel_url: `${process.env.FRONTEND_URL}?method=paypal&status=cancel`,
+            return_url: `${process.env.CLIENT_URL}?method=paypal`,
+            cancel_url: `${process.env.CLIENT_URL}?method=paypal&status=cancel`,
           },
         }),
       });
@@ -111,7 +111,7 @@ const createPayPalRouter = () => {
             Authorization: `Bearer ${accessToken}`,
             "Content-Type": "application/json",
           },
-        }
+        },
       );
 
       const captureData = await captureRes.json();
@@ -145,7 +145,7 @@ const createPayPalRouter = () => {
           headers: {
             Authorization: `Bearer ${accessToken}`,
           },
-        }
+        },
       );
 
       const orderData = await orderRes.json();
