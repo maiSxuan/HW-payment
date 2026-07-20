@@ -1,7 +1,14 @@
 // backend/stripe/server.js
 const express = require("express");
-const config = require("./config");
-const stripe = require("stripe")(config.STRIPE_SECRET_KEY);
+const path = require("path");
+require("dotenv").config({ path: path.join(__dirname, ".env") });
+
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+
+const config = {
+  STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
+  CLIENT_URL: process.env.CLIENT_URL,
+};
 
 const createStripeRouter = () => {
   const router = express.Router();
@@ -10,7 +17,9 @@ const createStripeRouter = () => {
     try {
       const sessionId = req.query.session_id;
       if (!sessionId) {
-        return res.status(400).json({ verified: false, error: "Thiếu session_id" });
+        return res
+          .status(400)
+          .json({ verified: false, error: "Thiếu session_id" });
       }
 
       const session = await stripe.checkout.sessions.retrieve(sessionId);
@@ -48,8 +57,8 @@ const createStripeRouter = () => {
           },
         ],
         mode: "payment",
-        success_url: `${config.CLIENT_URL}/index.html?status=success&session_id={CHECKOUT_SESSION_ID}&method=stripe`,
-        cancel_url: `${config.CLIENT_URL}/index.html?status=cancel&method=stripe`,
+        success_url: `${config.CLIENT_URL}/?status=success&session_id={CHECKOUT_SESSION_ID}&method=stripe`,
+        cancel_url: `${config.CLIENT_URL}/?status=cancel&method=stripe`,
       });
 
       res.json({ url: session.url });

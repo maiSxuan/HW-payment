@@ -4,12 +4,17 @@ const axios = require("axios").default;
 const CryptoJS = require("crypto-js");
 const moment = require("moment");
 const qs = require("qs");
+const path = require("path");
+require("dotenv").config({ path: path.join(__dirname, ".env") });
 
 const config = {
-  appid: "553",
-  key1: "9phuAOYhan4urywHTh0ndEXiV3pKHr5Q",
-  key2: "Iyz2habzyr7AG8SgvoBCbKwKi3UzlLi3",
-  endpoint: "https://sandbox.zalopay.com.vn/v001/tpe/createorder",
+  appid: process.env.ZALO_APPID,
+  key1: process.env.ZALO_KEY1,
+  key2: process.env.ZALO_KEY2,
+  endpoint: process.env.ZALO_ENDPOINT,
+  callbackUrl: process.env.ZALO_CALLBACK_URL,
+  orderStatusUrl: process.env.ZALO_ORDER_STATUS_URL,
+  CLIENT_URL: process.env.CLIENT_URL,
 };
 
 const paymentStatuses = {}; // Lưu trạng thái callback cho FE kiểm tra
@@ -21,14 +26,14 @@ const createZaloPayRouter = () => {
     console.log("[ZaloPay] createOrder() called");
     const embeddata = {
       merchantinfo: "embeddata123",
-      redirecturl: "http://localhost:3000", // quay lại trang chủ frontend
+      redirecturl: `${config.CLIENT_URL}/?status=zalopay_return`, // quay lại trang chủ frontend
     };
 
     const items = [
       {
-        itemid: "knb",
-        itemname: "kim nguyen bao",
-        itemprice: 198400,
+        itemid: "OL01",
+        itemname: "Ốp lưng Iphone16",
+        itemprice: 50000,
         itemquantity: 1,
       },
     ];
@@ -37,14 +42,14 @@ const createZaloPayRouter = () => {
     const order = {
       appid: config.appid,
       apptransid: `${moment().format("YYMMDD")}_${transID}`,
-      appuser: "demo",
+      appuser: "Nguyễn Văn A",
       apptime: Date.now(),
       item: JSON.stringify(items),
       embeddata: JSON.stringify(embeddata),
       amount: 50000,
-      description: "ZaloPay Integration Demo",
+      description: "Thanh toán đơn hàng ORD-001",
       bankcode: "zalopayapp",
-      callbackurl: "https://confusion-kissing-bonanza.ngrok-free.dev/callback",
+      callbackurl: config.callbackUrl,
     };
 
     const data =
@@ -65,7 +70,9 @@ const createZaloPayRouter = () => {
 
     console.log("[ZaloPay] sending to endpoint:", config.endpoint);
     try {
-      const result = await axios.post(config.endpoint, null, { params: order });
+      const result = await axios.post(config.endpoint, qs.stringify(order), {
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      });
       console.log("[ZaloPay] received from endpoint");
       return { apptransid: order.apptransid, ...result.data };
     } catch (err) {
@@ -77,9 +84,16 @@ const createZaloPayRouter = () => {
   // Debug callback
   router.all("/debug-callback", express.raw({ type: "*/*" }), (req, res) => {
     const rawBody = req.body;
-    let parsedBody = Buffer.isBuffer(rawBody) ? rawBody.toString("utf8") : rawBody;
+    let parsedBody = Buffer.isBuffer(rawBody)
+      ? rawBody.toString("utf8")
+      : rawBody;
     console.log("[ZaloPay] DEBUG CALLBACK method:", req.method);
-    res.status(200).json({ method: req.method, url: req.originalUrl, parsedBody, query: req.query });
+    res.status(200).json({
+      method: req.method,
+      url: req.originalUrl,
+      parsedBody,
+      query: req.query,
+    });
   });
 
   // Tạo đơn hàng (cả 2 route đều hỗ trợ)
@@ -90,7 +104,10 @@ const createZaloPayRouter = () => {
       console.log("[ZaloPay] Create order response:", orderResult);
       return res.status(200).json(orderResult);
     } catch (err) {
-      console.error("[ZaloPay] Create order error:", err.response?.data || err.message);
+      console.error(
+        "[ZaloPay] Create order error:",
+        err.response?.data || err.message,
+      );
       return res.status(err.response?.status || 500).json({
         message: "Không thể tạo đơn hàng ZaloPay",
         error: err.response?.data || err.message,
@@ -147,7 +164,10 @@ const createZaloPayRouter = () => {
       } else {
         const dataJson = JSON.parse(dataStr);
         const callbackStatus = Number(dataJson.status);
-        console.log("[ZaloPay] callback success, apptransid:", dataJson.apptransid);
+        console.log(
+          "[ZaloPay] callback success, apptransid:",
+          dataJson.apptransid,
+        );
         result.returncode = 1;
         result.returnmessage = "success";
         result.callbackStatus = callbackStatus;
@@ -174,7 +194,10 @@ const createZaloPayRouter = () => {
           detail: dataJson,
         };
       } catch (err) {
-        console.warn("[ZaloPay] Không lưu được trạng thái callback:", err.message);
+        console.warn(
+          "[ZaloPay] Không lưu được trạng thái callback:",
+          err.message,
+        );
       }
     }
 
@@ -208,7 +231,7 @@ const createZaloPayRouter = () => {
 
     let postConfig = {
       method: "post",
-      url: "https://sandbox.zalopay.com.vn/v001/tpe/getstatusbyapptransid",
+      url: config.orderStatusUrl,
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       data: qs.stringify(postData),
     };
@@ -223,8 +246,16 @@ const createZaloPayRouter = () => {
         status.error?.errorCode === "TRANS_INFO_NOT_FOUND";
 
       if (isNotFound) {
-        console.log("[ZaloPay] ⏳ Giao dịch chưa tìm thấy (user chưa thanh toán)", { apptransid });
-      } else if (status.returncode === 1 && (status.status === 1 || status.status === "SUCCESS" || status.isprocessing === false)) {
+        console.log(
+          "[ZaloPay] ⏳ Giao dịch chưa tìm thấy (user chưa thanh toán)",
+          { apptransid },
+        );
+      } else if (
+        status.returncode === 1 &&
+        (status.status === 1 ||
+          status.status === "SUCCESS" ||
+          status.isprocessing === false)
+      ) {
         console.log("[ZaloPay] ✅ THANH TOÁN THÀNH CÔNG", { apptransid });
         paymentStatuses[apptransid] = {
           apptransid,
@@ -233,7 +264,12 @@ const createZaloPayRouter = () => {
           returnmessage: status.returnmessage,
           detail: status,
         };
-      } else if (status.returncode === 1 && (status.status === 2 || status.status === "PROCESSING" || status.isprocessing === true)) {
+      } else if (
+        status.returncode === 1 &&
+        (status.status === 2 ||
+          status.status === "PROCESSING" ||
+          status.isprocessing === true)
+      ) {
         console.log("[ZaloPay] ⏳ GIAO DỊCH ĐANG XỬ LÝ", { apptransid });
         paymentStatuses[apptransid] = {
           apptransid,
@@ -243,7 +279,10 @@ const createZaloPayRouter = () => {
           detail: status,
         };
       } else {
-        console.error("[ZaloPay] ❌ THANH TOÁN THẤT BẠI", { apptransid, status });
+        console.error("[ZaloPay] ❌ THANH TOÁN THẤT BẠI", {
+          apptransid,
+          status,
+        });
         paymentStatuses[apptransid] = {
           apptransid,
           status: "failed",
@@ -255,7 +294,10 @@ const createZaloPayRouter = () => {
 
       return res.status(200).json(result.data);
     } catch (error) {
-      console.error("[ZaloPay] Order status error:", error.response?.data || error.message);
+      console.error(
+        "[ZaloPay] Order status error:",
+        error.response?.data || error.message,
+      );
       return res.status(error.response?.status || 500).json({
         message: "Không thể kiểm tra trạng thái đơn hàng",
         error: error.response?.data || error.message,
@@ -265,6 +307,24 @@ const createZaloPayRouter = () => {
 
   router.get("/orderstatus/:apptransid", handleOrderStatus);
   router.post("/orderstatus/:apptransid", handleOrderStatus);
+
+  router.post("/zalopay/cancel/:apptransid", (req, res) => {
+    const apptransid = req.params.apptransid;
+    if (!apptransid) {
+      return res.status(400).json({ message: "Thiếu apptransid" });
+    }
+
+    paymentStatuses[apptransid] = {
+      apptransid,
+      status: "failed",
+      returncode: -1,
+      returnmessage: "Giao dịch bị huỷ bởi người dùng.",
+      detail: { cancelledBy: "user", timestamp: Date.now() },
+    };
+
+    console.log("[ZaloPay] order cancelled by frontend:", apptransid);
+    return res.status(200).json({ ok: true, apptransid, status: "failed" });
+  });
 
   return router;
 };

@@ -3,10 +3,23 @@ app.style.fontFamily = "Arial, sans-serif";
 app.style.background = "#f0f2f5";
 app.style.minHeight = "100vh";
 app.style.padding = "24px";
+app.style.margin = "24px 24px 0 auto";
 app.innerHTML = `
   <div style="max-width:740px;margin:0 auto;background:#fff;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.08);padding:24px;">
     <div id="mainContent">
       <h1>HW Payment</h1>
+      <div id="orderSummary" style="margin-bottom:20px;padding:16px;border-radius:12px;background:#fafafa;border:1px solid #e8e8e8;">
+        <h3 style="margin-top:0;margin-bottom:12px;font-size:16px;">Thông tin đơn hàng</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:14px;">
+          <div><span style="color:#888;">Người mua:</span> <strong>Nguyễn Văn A</strong></div>
+          <div><span style="color:#888;">Mã đơn:</span> <strong>ORD-001</strong></div>
+          <div><span style="color:#888;">Sản phẩm:</span> <strong>Ốp lưng Iphone16</strong></div>
+          <div><span style="color:#888;">Số lượng:</span> <strong>1</strong></div>
+          <div style="grid-column:1 / -1; margin-top:8px; padding-top:12px; border-top:1px dashed #ddd; font-size:16px;">
+            <span style="color:#888;">Tổng tiền:</span> <strong style="color:#ff4d4f; font-size: 18px;">50.000 VNĐ</strong>
+          </div>
+        </div>
+      </div>
       <p>Chọn phương thức thanh toán.</p>
       <div id="methods" style="display:grid;grid-template-columns:repeat(2,minmax(140px,1fr));gap:16px"></div>
       <div id="status" style="margin-top:24px;padding:18px;border-radius:12px;background:#fafafa;border:1px solid #e8e8e8;min-height:86px"></div>
@@ -14,8 +27,10 @@ app.innerHTML = `
       <div id="orderUrl" style="margin-top:12px; font-size:14px; line-height:1.6;"></div>
       <div id="countdown" style="margin-top:12px; font-size:18px; font-weight:bold; color:#ff4d4f; text-align:center; display:none;"></div>
       <div id="qrContainer" style="margin-top:16px;display:flex;justify-content:center"></div>
-      <button id="payButton" style="margin-top:16px;padding:12px 20px;border:none;border-radius:10px;background:#1677ff;color:#fff;font-size:16px;cursor:pointer" disabled>Thanh toán</button>
-      <button id="resetButton" style="margin-top:16px;margin-left:12px;padding:12px 20px;border:none;border-radius:10px;background:#52c41a;color:#fff;font-size:16px;cursor:pointer">Về trang chủ</button>
+      <div style="display:flex;justify-content:flex-end;gap:12px;margin-top:16px;">
+        <button id="resetButton" style="padding:12px 20px;border:none;border-radius:10px;background:#52c41a;color:#fff;font-size:16px;cursor:pointer">Về trang chủ</button>
+        <button id="payButton" style="padding:12px 20px;border:none;border-radius:10px;background:#1677ff;color:#fff;font-size:16px;cursor:pointer" disabled>Thanh toán</button>
+      </div>
       <pre id="debug" style="display:none;margin-top:20px;padding:16px;background:#001529;color:#fff;border-radius:12px;white-space:pre-wrap;min-height:140px"></pre>
     </div>
     <div id="successScreen" style="display:none; text-align:center; padding:40px 0;">
@@ -33,7 +48,6 @@ app.innerHTML = `
       <h2 style="color:#ff4d4f; margin-top:24px; font-weight:700;">THANH TOÁN THẤT BẠI</h2>
       <p id="failureMessage" style="color:#657786; margin-top:16px;">Giao dịch không thành công.</p>
       <button id="retryBtn" style="margin-top:20px;padding:12px 24px;border:none;border-radius:10px;background:#1677ff;color:#fff;font-size:16px;cursor:pointer;">Thử lại</button>
-      <p style="margin-top:12px;"><a href="#" id="failureHomeBtn" style="color:#1677ff; text-decoration:underline; font-weight:bold;">Về ngay</a></p>
     </div>
   </div>
 `;
@@ -56,12 +70,22 @@ const returnHomeBtn = document.getElementById("returnHomeBtn");
 const failureScreen = document.getElementById("failureScreen");
 const failureMessage = document.getElementById("failureMessage");
 const retryBtn = document.getElementById("retryBtn");
-const failureHomeBtn = document.getElementById("failureHomeBtn");
 let selectedMethod = null;
 let currentApptransid = null;
 let countdownInterval = null;
 let successInterval = null;
+let zalopayPollingActive = false;
 const countdownEl = document.getElementById("countdown");
+
+async function safeJson(response) {
+  const text = await response.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch (err) {
+    return { error: text || err.message };
+  }
+}
 
 returnHomeBtn.onclick = (e) => {
   e.preventDefault();
@@ -69,11 +93,6 @@ returnHomeBtn.onclick = (e) => {
 };
 
 retryBtn.onclick = () => resetApp();
-
-failureHomeBtn.onclick = (e) => {
-  e.preventDefault();
-  resetApp();
-};
 
 methods.forEach((method) => {
   const card = document.createElement("div");
@@ -89,6 +108,14 @@ methods.forEach((method) => {
 });
 
 function selectMethod(method, element) {
+  if (currentApptransid) {
+    if (selectedMethod === "zalopay") {
+      cancelZaloPayOrder(currentApptransid);
+    }
+    showFailureScreen("Giao dịch bị huỷ bởi người dùng.");
+    return;
+  }
+
   selectedMethod = method;
   payButton.disabled = false;
   statusEl.innerHTML = `<strong>Phương thức đã chọn:</strong> ${method}`;
@@ -103,6 +130,7 @@ function selectMethod(method, element) {
 function resetApp() {
   selectedMethod = null;
   currentApptransid = null;
+  zalopayPollingActive = false;
   clearInterval(countdownInterval);
   clearInterval(successInterval);
   countdownEl.style.display = "none";
@@ -125,7 +153,14 @@ function resetApp() {
   debugEl.textContent = "";
 }
 
-resetButton.onclick = resetApp;
+resetButton.onclick = async () => {
+  if (selectedMethod === "zalopay" && currentApptransid) {
+    await cancelZaloPayOrder(currentApptransid);
+    showFailureScreen("Giao dịch bị huỷ bởi người dùng.");
+    return;
+  }
+  resetApp();
+};
 
 payButton.onclick = async () => {
   if (!selectedMethod) return;
@@ -135,38 +170,38 @@ payButton.onclick = async () => {
   resetButton.disabled = true;
   debugEl.textContent = "";
 
-// stripe 
-if (selectedMethod === "stripe") {
-  try {
-    const res = await fetch("/stripe/create-order", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        amount: 50000, 
-        productName: "Stripe Integration Demo"
-      })
-    });
-    const data = await res.json();
-    debugEl.textContent = JSON.stringify(data, null, 2);
+  // stripe
+  if (selectedMethod === "stripe") {
+    try {
+      const res = await fetch("/stripe/create-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: 50000,
+          productName: "Ốp lưng Iphone16 - ORD-001",
+        }),
+      });
+      const data = await safeJson(res);
+      debugEl.textContent = JSON.stringify(data, null, 2);
 
-    if (!res.ok) throw new Error(data.error || "Lỗi tạo đơn Stripe");
+      if (!res.ok) throw new Error(data.error || "Lỗi tạo đơn Stripe");
 
-    if (data.url) {
-      statusEl.innerHTML = `<strong>Stripe:</strong> Đang chuyển hướng...`;
-      statusEl.style.borderColor = "#52c41a";
-      window.location.href = data.url; // Chuyển hướng sang Stripe Checkout
-    } else {
-      throw new Error("Không nhận được url thanh toán từ Stripe");
+      if (data.url) {
+        statusEl.innerHTML = `<strong>Stripe:</strong> Đang chuyển hướng...`;
+        statusEl.style.borderColor = "#52c41a";
+        window.location.href = data.url; // Chuyển hướng sang Stripe Checkout
+      } else {
+        throw new Error("Không nhận được url thanh toán từ Stripe");
+      }
+    } catch (err) {
+      statusEl.innerHTML = `<strong>Lỗi Stripe:</strong> ${err.message}`;
+      statusEl.style.borderColor = "#ff4d4f";
+      payButton.disabled = false;
+      resetButton.disabled = false;
     }
-  } catch (err) {
-    statusEl.innerHTML = `<strong>Lỗi Stripe:</strong> ${err.message}`;
-    statusEl.style.borderColor = "#ff4d4f";
-    payButton.disabled = false;
-    resetButton.disabled = false;
+    return; //
   }
-  return; // 
-}
-// end stripe selection
+  // end stripe selection
 
   if (selectedMethod !== "zalopay") {
     statusEl.innerHTML = `<strong>${selectedMethod.toUpperCase()}</strong> hiện chưa xử lý.`;
@@ -178,17 +213,20 @@ if (selectedMethod === "stripe") {
 
   try {
     const res = await fetch("/zalopay/create-order", { method: "POST" });
-    const data = await res.json();
+    const data = await safeJson(res);
     debugEl.textContent = JSON.stringify(data, null, 2);
 
-    if (!res.ok) throw new Error(data.message || "Lỗi tạo đơn");
-
-    currentApptransid = data.apptransid;
+    if (!res.ok) {
+      throw new Error(data.message || data.error || "Lỗi tạo đơn");
+    }
     statusEl.style.display = "none"; // Ẩn status box, thay bằng UI ZaloPay đẹp
     qrContainer.innerHTML = "";
     orderUrlEl.innerHTML = ""; // Xóa link gateway
 
     if (data.orderurl) {
+      currentApptransid = data.apptransid || currentApptransid;
+      resetButton.disabled = false;
+
       // Bắt đầu đếm ngược 15 phút
       let timeLeft = 15 * 60;
       clearInterval(countdownInterval);
@@ -242,7 +280,7 @@ if (selectedMethod === "stripe") {
             </div>
             <div style="margin-bottom:20px;">
               <p style="margin:0;font-size:13px;color:#888;">Nội dung</p>
-              <p style="margin:4px 0 0;font-size:14px;font-weight:600;color:#111;">ZaloPay Integration Demo</p>
+              <p style="margin:4px 0 0;font-size:14px;font-weight:600;color:#111;">Thanh toán đơn hàng ORD-001</p>
             </div>
 
             <!-- Countdown box -->
@@ -272,9 +310,11 @@ if (selectedMethod === "stripe") {
       const updateCountdown = () => {
         if (timeLeft <= 0) {
           clearInterval(countdownInterval);
-          if (countdownBox) countdownBox.innerHTML = `<span style="color:#ff4d4f;font-weight:700;">⏰ Giao dịch đã hết hạn</span>`;
+          if (countdownBox)
+            countdownBox.innerHTML = `<span style="color:#ff4d4f;font-weight:700;">⏰ Giao dịch đã hết hạn</span>`;
           statusEl.style.display = "block";
-          statusEl.innerHTML = "<strong>Thanh toán thất bại:</strong> Quá thời gian quy định";
+          statusEl.innerHTML =
+            "<strong>Thanh toán thất bại:</strong> Quá thời gian quy định";
           statusEl.style.borderColor = "#ff4d4f";
           resetButton.disabled = false;
           return;
@@ -284,11 +324,11 @@ if (selectedMethod === "stripe") {
       };
 
       countdownInterval = setInterval(updateCountdown, 1000);
-
     } else {
       orderDetailsEl.style.display = "none";
       statusEl.style.display = "block";
-      statusEl.innerHTML = "<strong>Lỗi:</strong> Không có orderurl từ ZaloPay.";
+      statusEl.innerHTML =
+        "<strong>Lỗi:</strong> Không có orderurl từ ZaloPay.";
     }
 
     await pollStatus(currentApptransid);
@@ -300,6 +340,19 @@ if (selectedMethod === "stripe") {
     resetButton.disabled = false;
   }
 };
+
+async function cancelZaloPayOrder(apptransid) {
+  if (!apptransid) return;
+  zalopayPollingActive = false;
+  try {
+    await fetch(`/zalopay/cancel/${encodeURIComponent(apptransid)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (err) {
+    console.warn("[ZaloPay] cancel order failed:", err.message);
+  }
+}
 
 function clearStripeReturnParams() {
   const url = new URL(window.location.href);
@@ -366,9 +419,9 @@ async function handleStripeReturn() {
 
   try {
     const res = await fetch(
-      `/stripe/verify-session?session_id=${encodeURIComponent(sessionId)}`
+      `/stripe/verify-session?session_id=${encodeURIComponent(sessionId)}`,
     );
-    const data = await res.json();
+    const data = await safeJson(res);
 
     if (res.ok && data.verified) {
       showSuccessScreen();
@@ -386,12 +439,24 @@ async function handleStripeReturn() {
 }
 
 async function pollStatus(apptransid) {
+  if (!apptransid) {
+    console.error("[ZaloPay] pollStatus không có apptransid");
+    return;
+  }
+
+  zalopayPollingActive = true;
+
   for (let i = 0; i < 450; i++) {
+    if (!zalopayPollingActive || apptransid !== currentApptransid) {
+      console.log("[ZaloPay] pollStatus stopped for", apptransid);
+      return;
+    }
+
     let isPending = true; // mặc định coi là đang chờ
 
     try {
       const res = await fetch(`/payment-status/${apptransid}`);
-      const data = await res.json();
+      const data = await safeJson(res);
       debugEl.textContent += `\n=== Poll ${i + 1} ===\n${JSON.stringify(data, null, 2)}`;
 
       if (data.status === "success") {
@@ -400,9 +465,9 @@ async function pollStatus(apptransid) {
       } else if (data.status === "failed") {
         clearInterval(countdownInterval);
         countdownEl.style.display = "none";
-        statusEl.innerHTML = `<strong>Thanh toán thất bại</strong> ${data.returnmessage || ""}`;
-        statusEl.style.borderColor = "#ff4d4f";
-        resetButton.disabled = false;
+        statusEl.style.display = "block";
+        orderDetailsEl.style.display = "none";
+        showFailureScreen(data.returnmessage || "Thanh toán thất bại.");
         return;
       } else if (data.status === "processing") {
         statusEl.innerHTML = `<strong>Giao dịch đang xử lý</strong> Vui lòng chờ callback.`;
@@ -430,11 +495,20 @@ async function pollStatus(apptransid) {
         debugEl.textContent += `\n=== Fallback orderstatus ${i + 1} ===\n${JSON.stringify(statusData, null, 2)}`;
 
         if (statusData.returncode === 1) {
-          if (statusData.status === 1 || statusData.status === "SUCCESS" || statusData.isprocessing === false) {
+          if (
+            statusData.status === 1 ||
+            statusData.status === "SUCCESS" ||
+            statusData.isprocessing === false
+          ) {
             showSuccessScreen();
             return;
           }
-          if (statusData.status === 2 || statusData.status === "PROCESSING" || statusData.isprocessing === true) {
+          if (
+            statusData.status === 2 ||
+            statusData.status === "PROCESSING" ||
+            statusData.isprocessing === true
+          ) {
+            statusEl.style.display = "block";
             statusEl.innerHTML = `<strong>Giao dịch đang xử lý</strong> Vui lòng chờ callback.`;
             statusEl.style.borderColor = "#faad14";
             // tiếp tục vòng lặp
@@ -445,18 +519,20 @@ async function pollStatus(apptransid) {
     } catch (e) {
       console.warn(`Fallback orderstatus ${i + 1} lỗi:`, e.message);
     }
+
+    // Delay 2 giây giữa các vòng lặp
+    await new Promise((resolve) => setTimeout(resolve, 2000));
   }
 
   statusEl.innerHTML =
     "<strong>Chưa nhận callback.</strong> Vui lòng kiểm tra lại sau.";
   statusEl.style.borderColor = "#faad14";
   resetButton.disabled = false;
+  zalopayPollingActive = false;
 }
 
 statusEl.innerHTML = "<strong>Trạng thái:</strong> Chưa chọn phương thức.";
 orderUrlEl.innerHTML = "";
 
-
-window.addEventListener("DOMContentLoaded", () => {
-  handleStripeReturn();
-});
+// Gọi trực tiếp thay vì DOMContentLoaded vì Vite ESModule script đã được defer tự động
+handleStripeReturn();
