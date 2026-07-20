@@ -203,6 +203,38 @@ payButton.onclick = async () => {
   }
   // end stripe selection
 
+  // paypal
+  if (selectedMethod === "paypal") {
+    try {
+      const res = await fetch("/paypal/create-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: "2.00" }), // quy đổi 50.000 VNĐ ra USD sandbox
+      });
+      const data = await safeJson(res);
+      debugEl.textContent = JSON.stringify(data, null, 2);
+
+      if (!res.ok) throw new Error(data.message || "Lỗi tạo đơn PayPal");
+
+      const approveLink = data.links?.find((l) => l.rel === "approve")?.href;
+
+      if (approveLink) {
+        statusEl.innerHTML = `<strong>PayPal:</strong> Đang chuyển hướng...`;
+        statusEl.style.borderColor = "#52c41a";
+        window.location.href = approveLink; // Chuyển hướng sang PayPal Checkout
+      } else {
+        throw new Error("Không nhận được link thanh toán từ PayPal");
+      }
+    } catch (err) {
+      statusEl.innerHTML = `<strong>Lỗi PayPal:</strong> ${err.message}`;
+      statusEl.style.borderColor = "#ff4d4f";
+      payButton.disabled = false;
+      resetButton.disabled = false;
+    }
+    return;
+  }
+// end paypal selection
+
   if (selectedMethod !== "zalopay") {
     statusEl.innerHTML = `<strong>${selectedMethod.toUpperCase()}</strong> hiện chưa xử lý.`;
     statusEl.style.borderColor = "#ff4d4f";
@@ -438,6 +470,43 @@ async function handleStripeReturn() {
   }
 }
 
+function clearPaypalReturnParams() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("token");
+  url.searchParams.delete("PayerID");
+  url.searchParams.delete("method");
+  window.history.replaceState({}, "", url.pathname + url.search);
+}
+
+async function handlePaypalReturn() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const orderId = urlParams.get("token"); // PayPal trả về orderId qua param "token"
+
+  if (!orderId) return;
+
+  clearPaypalReturnParams();
+
+  mainContent.style.display = "block";
+  statusEl.style.display = "block";
+  statusEl.innerHTML = "<strong>PayPal:</strong> Đang xác minh thanh toán...";
+  statusEl.style.borderColor = "#faad14";
+
+  try {
+    const res = await fetch(`/paypal/capture-order/${orderId}`, {
+      method: "POST",
+    });
+    const data = await safeJson(res);
+
+    if (res.ok && data.status === "COMPLETED") {
+      showSuccessScreen();
+      return;
+    }
+    showFailureScreen(data.message || "Không thể xác minh thanh toán.");
+  } catch (err) {
+    showFailureScreen(err.message || "Không thể xác minh thanh toán.");
+  }
+}
+
 async function pollStatus(apptransid) {
   if (!apptransid) {
     console.error("[ZaloPay] pollStatus không có apptransid");
@@ -536,3 +605,4 @@ orderUrlEl.innerHTML = "";
 
 // Gọi trực tiếp thay vì DOMContentLoaded vì Vite ESModule script đã được defer tự động
 handleStripeReturn();
+handlePaypalReturn();
