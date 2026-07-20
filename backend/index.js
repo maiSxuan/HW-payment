@@ -1,5 +1,6 @@
 // backend/index.js
 // Entry point: khởi động tất cả payment servers cùng lúc trên 1 Express app
+require("dotenv").config();
 const express = require("express");
 const path = require("path");
 
