@@ -24,9 +24,10 @@ const createZaloPayRouter = () => {
 
   const createOrder = async () => {
     console.log("[ZaloPay] createOrder() called");
+    // redirecturl: ZaloPay Gateway sẽ redirect về đây sau khi thanh toán
     const embeddata = {
       merchantinfo: "embeddata123",
-      redirecturl: `${config.CLIENT_URL}/?status=zalopay_return`, // quay lại trang chủ frontend
+      redirecturl: `${config.CLIENT_URL}/?status=zalopay_return`,
     };
 
     const items = [
@@ -48,7 +49,9 @@ const createZaloPayRouter = () => {
       embeddata: JSON.stringify(embeddata),
       amount: 50000,
       description: "Thanh toán đơn hàng ORD-001",
-      bankcode: "zalopayapp",
+      // Không truyền bankcode → ZaloPay Gateway hiện đầy đủ phương thức:
+      // ZaloPay QR, thẻ ATM, Visa/Master/JCB, chuyển khoản ngân hàng
+      bankcode: "",
       callbackurl: config.callbackUrl,
     };
 

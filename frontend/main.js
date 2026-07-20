@@ -269,130 +269,31 @@ payButton.onclick = async () => {
     return;
   }
 
+  // ZaloPay Gateway redirect flow (giống VNPay/Stripe/PayPal)
   try {
     const res = await fetch("/zalopay/create-order", { method: "POST" });
     const data = await safeJson(res);
     debugEl.textContent = JSON.stringify(data, null, 2);
 
     if (!res.ok) {
-      throw new Error(data.message || data.error || "Lỗi tạo đơn");
-    }
-    statusEl.style.display = "none"; // Ẩn status box, thay bằng UI ZaloPay đẹp
-    qrContainer.innerHTML = "";
-    orderUrlEl.innerHTML = ""; // Xóa link gateway
-
-    if (data.orderurl) {
-      currentApptransid = data.apptransid || currentApptransid;
-      resetButton.disabled = false;
-
-      // Bắt đầu đếm ngược 15 phút
-      let timeLeft = 15 * 60;
-      clearInterval(countdownInterval);
-
-      const getCountdownHtml = () => {
-        const minutes = Math.floor(timeLeft / 60);
-        const seconds = timeLeft % 60;
-        const mm = minutes.toString().padStart(2, "0");
-        const ss = seconds.toString().padStart(2, "0");
-        return `
-          <span style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#666;">
-            Giao dịch kết thúc trong
-            <span style="display:inline-flex;align-items:center;gap:3px;">
-              <span style="background:#f5f5f5;border:1px solid #e0e0e0;border-radius:6px;padding:2px 8px;font-size:15px;font-weight:700;color:#111;min-width:28px;text-align:center;">${mm}</span>
-              <span style="font-weight:700;color:#111;">:</span>
-              <span style="background:#f5f5f5;border:1px solid #e0e0e0;border-radius:6px;padding:2px 8px;font-size:15px;font-weight:700;color:#111;min-width:28px;text-align:center;">${ss}</span>
-            </span>
-          </span>`;
-      };
-
-      // QR image
-      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(data.orderurl)}&margin=10`;
-
-      orderDetailsEl.style.display = "block";
-      orderDetailsEl.style.padding = "0";
-      orderDetailsEl.style.background = "transparent";
-      orderDetailsEl.style.border = "none";
-      orderDetailsEl.innerHTML = `
-        <div style="display:flex;gap:0;border-radius:16px;overflow:hidden;border:1px solid #e8edf2;background:#fff;">
-          <!-- Cột trái: Thông tin đơn hàng -->
-          <div style="flex:0 0 300px;padding:28px 24px;border-right:1px solid #e8edf2;background:#fff;">
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
-              <svg width="90" height="28" viewBox="0 0 90 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <text x="0" y="22" font-family="Arial Black,Arial" font-weight="900" font-size="22" fill="#0068ff">Zalo</text>
-                <text x="52" y="22" font-family="Arial Black,Arial" font-weight="900" font-size="22" fill="#00c853">pay</text>
-              </svg>
-              <span style="font-size:13px;color:#888;">Merchant Demo V1</span>
-            </div>
-
-            <div style="margin-bottom:14px;">
-              <p style="margin:0;font-size:13px;color:#888;">Giá trị đơn hàng</p>
-              <p style="margin:4px 0 0;font-size:14px;color:#333;">₫50.000</p>
-            </div>
-            <div style="margin-bottom:14px;">
-              <p style="margin:0;font-size:13px;color:#888;">Số tiền thanh toán</p>
-              <p style="margin:4px 0 0;font-size:20px;font-weight:700;color:#111;">₫50.000</p>
-            </div>
-            <div style="margin-bottom:14px;">
-              <p style="margin:0;font-size:13px;color:#888;">Mã giao dịch</p>
-              <p style="margin:4px 0 0;font-size:14px;font-weight:600;color:#111;">${data.apptransid}</p>
-            </div>
-            <div style="margin-bottom:20px;">
-              <p style="margin:0;font-size:13px;color:#888;">Nội dung</p>
-              <p style="margin:4px 0 0;font-size:14px;font-weight:600;color:#111;">Thanh toán đơn hàng ORD-001</p>
-            </div>
-
-            <!-- Countdown box -->
-            <div id="countdownBox" style="background:#fffbf0;border:1px solid #ffe7a0;border-radius:10px;padding:10px 14px;display:inline-block;">
-              ${getCountdownHtml()}
-            </div>
-          </div>
-
-          <!-- Cột phải: QR code -->
-          <div style="flex:1;padding:28px 24px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fff;">
-            <p style="margin:0 0 16px;font-size:17px;font-weight:700;color:#111;">Quét QR để thanh toán</p>
-            <div style="position:relative;width:230px;height:230px;">
-              <!-- Corner brackets -->
-              <div style="position:absolute;top:0;left:0;width:22px;height:22px;border-top:3px solid #0068ff;border-left:3px solid #0068ff;border-radius:4px 0 0 0;"></div>
-              <div style="position:absolute;top:0;right:0;width:22px;height:22px;border-top:3px solid #0068ff;border-right:3px solid #0068ff;border-radius:0 4px 0 0;"></div>
-              <div style="position:absolute;bottom:0;left:0;width:22px;height:22px;border-bottom:3px solid #0068ff;border-left:3px solid #0068ff;border-radius:0 0 0 4px;"></div>
-              <div style="position:absolute;bottom:0;right:0;width:22px;height:22px;border-bottom:3px solid #0068ff;border-right:3px solid #0068ff;border-radius:0 0 4px 0;"></div>
-              <img id="qrCodeImg" src="${qrUrl}" alt="QR code ZaloPay"
-                style="width:100%;height:100%;object-fit:contain;border-radius:4px;" />
-            </div>
-            <p style="margin:16px 0 6px;font-size:13px;color:#888;text-align:center;">Mở ứng dụng ZaloPay để quét mã</p>
-          </div>
-        </div>
-      `;
-
-      const countdownBox = document.getElementById("countdownBox");
-      const updateCountdown = () => {
-        if (timeLeft <= 0) {
-          clearInterval(countdownInterval);
-          if (countdownBox)
-            countdownBox.innerHTML = `<span style="color:#ff4d4f;font-weight:700;">⏰ Giao dịch đã hết hạn</span>`;
-          statusEl.style.display = "block";
-          statusEl.innerHTML =
-            "<strong>Thanh toán thất bại:</strong> Quá thời gian quy định";
-          statusEl.style.borderColor = "#ff4d4f";
-          resetButton.disabled = false;
-          return;
-        }
-        timeLeft--;
-        if (countdownBox) countdownBox.innerHTML = getCountdownHtml();
-      };
-
-      countdownInterval = setInterval(updateCountdown, 1000);
-    } else {
-      orderDetailsEl.style.display = "none";
-      statusEl.style.display = "block";
-      statusEl.innerHTML =
-        "<strong>Lỗi:</strong> Không có orderurl từ ZaloPay.";
+      throw new Error(data.message || data.error || "Lỗi tạo đơn ZaloPay");
     }
 
-    await pollStatus(currentApptransid);
+    if (!data.orderurl) {
+      throw new Error("Không nhận được orderurl từ ZaloPay");
+    }
+
+    // Lưu apptransid để kiểm tra khi quay về
+    sessionStorage.setItem("zalopay_pending_apptransid", data.apptransid);
+
+    statusEl.innerHTML = `<strong>ZaloPay:</strong> Đang chuyển đến cổng thanh toán...`;
+    statusEl.style.borderColor = "#0068ff";
+
+    // Redirect sang ZaloPay Gateway – người dùng chọn phương thức (QR, ATM, Visa/Master)
+    window.location.href = data.orderurl;
   } catch (err) {
     statusEl.style.display = "block";
-    statusEl.innerHTML = `<strong>Lỗi:</strong> ${err.message}`;
+    statusEl.innerHTML = `<strong>Lỗi ZaloPay:</strong> ${err.message}`;
     statusEl.style.borderColor = "#ff4d4f";
     payButton.disabled = false;
     resetButton.disabled = false;
@@ -533,96 +434,65 @@ async function handlePaypalReturn() {
   }
 }
 
-async function pollStatus(apptransid) {
+// Xử lý khi ZaloPay Gateway redirect về trang sau thanh toán
+async function handleZaloPayReturn() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const status = urlParams.get("status");
+
+  if (status !== "zalopay_return") return;
+
+  // Xóa query params khỏi URL
+  window.history.replaceState({}, document.title, window.location.pathname);
+
+  const apptransid = sessionStorage.getItem("zalopay_pending_apptransid");
+  sessionStorage.removeItem("zalopay_pending_apptransid");
+
+  mainContent.style.display = "block";
+  statusEl.style.display = "block";
+  statusEl.innerHTML = "<strong>ZaloPay:</strong> Đang xác minh kết quả thanh toán...";
+  statusEl.style.borderColor = "#0068ff";
+
   if (!apptransid) {
-    console.error("[ZaloPay] pollStatus không có apptransid");
+    showFailureScreen("Không tìm thấy mã giao dịch ZaloPay.");
     return;
   }
 
-  zalopayPollingActive = true;
+  // Truy vấn trạng thái đơn hàng trực tiếp từ ZaloPay
+  try {
+    const res = await fetch(`/orderstatus/${encodeURIComponent(apptransid)}`);
+    const data = await safeJson(res);
 
-  for (let i = 0; i < 450; i++) {
-    if (!zalopayPollingActive || apptransid !== currentApptransid) {
-      console.log("[ZaloPay] pollStatus stopped for", apptransid);
+    if (
+      res.ok &&
+      data.returncode === 1 &&
+      (data.status === 1 || data.status === "SUCCESS" || data.isprocessing === false)
+    ) {
+      resetApp();
       return;
     }
 
-    let isPending = true; // mặc định coi là đang chờ
+    // Thử lần 2 sau 3 giây (ZaloPay có thể chưa cập nhật ngay)
+    await new Promise((r) => setTimeout(r, 3000));
+    const res2 = await fetch(`/orderstatus/${encodeURIComponent(apptransid)}`);
+    const data2 = await safeJson(res2);
 
-    try {
-      const res = await fetch(`/payment-status/${apptransid}`);
-      const data = await safeJson(res);
-      debugEl.textContent += `\n=== Poll ${i + 1} ===\n${JSON.stringify(data, null, 2)}`;
-
-      if (data.status === "success") {
-        showSuccessScreen();
-        return;
-      } else if (data.status === "failed") {
-        clearInterval(countdownInterval);
-        countdownEl.style.display = "none";
-        statusEl.style.display = "block";
-        orderDetailsEl.style.display = "none";
-        showFailureScreen(data.returnmessage || "Thanh toán thất bại.");
-        return;
-      } else if (data.status === "processing") {
-        statusEl.innerHTML = `<strong>Giao dịch đang xử lý</strong> Vui lòng chờ callback.`;
-        statusEl.style.borderColor = "#faad14";
-        isPending = true; // tiếp tục chờ callback
-      } else {
-        // "pending" hoặc "unknown" = chưa có callback, tiếp tục chờ
-        statusEl.innerHTML = `<strong>Đang chờ thanh toán...</strong> Vui lòng quét mã QR hoặc click vào link.`;
-        statusEl.style.borderColor = "#faad14";
-        isPending = true;
-      }
-    } catch (e) {
-      console.warn(`Poll ${i + 1} lỗi:`, e.message);
+    if (
+      res2.ok &&
+      data2.returncode === 1 &&
+      (data2.status === 1 || data2.status === "SUCCESS" || data2.isprocessing === false)
+    ) {
+      resetApp();
+      return;
     }
 
-    // Chờ 2 giây rồi mới fallback qua /orderstatus
-    // (KHÔNG gọi ngay vì ZaloPay trả TRANS_INFO_NOT_FOUND nếu user chưa thanh toán)
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-
-    // Fallback: hỏi trực tiếp ZaloPay (chỉ sau khi đã chờ)
-    try {
-      const orderStatus = await fetch(`/orderstatus/${apptransid}`);
-      if (orderStatus.ok) {
-        const statusData = await orderStatus.json();
-        debugEl.textContent += `\n=== Fallback orderstatus ${i + 1} ===\n${JSON.stringify(statusData, null, 2)}`;
-
-        if (statusData.returncode === 1) {
-          if (
-            statusData.status === 1 ||
-            statusData.status === "SUCCESS" ||
-            statusData.isprocessing === false
-          ) {
-            showSuccessScreen();
-            return;
-          }
-          if (
-            statusData.status === 2 ||
-            statusData.status === "PROCESSING" ||
-            statusData.isprocessing === true
-          ) {
-            statusEl.innerHTML = `<strong>Giao dịch đang xử lý</strong> Vui lòng chờ callback.`;
-            statusEl.style.borderColor = "#faad14";
-            // tiếp tục vòng lặp
-          }
-        }
-        // returncode khác 1 (kể cả -49) = chưa tìm thấy / chưa thanh toán → tiếp tục chờ
-      }
-    } catch (e) {
-      console.warn(`Fallback orderstatus ${i + 1} lỗi:`, e.message);
-    }
-
-    // Delay 2 giây giữa các vòng lặp
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    // Nếu returncode không phải 1 → thất bại hoặc chưa thanh toán
+    const msg =
+      data2.returnmessage || data2.message ||
+      (data2.returncode === -49 ? "Giao dịch chưa được thanh toán." : "Thanh toán không thành công.");
+    showFailureScreen(msg);
+  } catch (err) {
+    showFailureScreen(err.message || "Không thể xác minh thanh toán ZaloPay.");
   }
-
-  statusEl.innerHTML =
-    "<strong>Chưa nhận callback.</strong> Vui lòng kiểm tra lại sau.";
-  statusEl.style.borderColor = "#faad14";
-  resetButton.disabled = false;
-  zalopayPollingActive = false;
 }
 
 statusEl.innerHTML = "<strong>Trạng thái:</strong> Chưa chọn phương thức.";
@@ -703,3 +573,4 @@ orderUrlEl.innerHTML = "";
 // Gọi trực tiếp thay vì DOMContentLoaded vì Vite ESModule script đã được defer tự động
 handleStripeReturn();
 handlePaypalReturn();
+handleZaloPayReturn();
