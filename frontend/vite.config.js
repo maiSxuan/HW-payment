@@ -9,6 +9,7 @@ export default defineConfig({
       "/payment-status": "http://localhost:3001",
       "/orderstatus": "http://localhost:3001",
       "/payment": "http://localhost:3001",
+      "/stripe": "http://localhost:3001",
     },
   },
 });

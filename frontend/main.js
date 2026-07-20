@@ -26,6 +26,15 @@ app.innerHTML = `
       <p style="color:#657786; margin-top:16px;">Hệ thống sẽ quay về trang sau <span id="successCountdown" style="font-weight:bold;">5</span> giây</p>
       <a href="#" id="returnHomeBtn" style="color:#1677ff; text-decoration:underline; font-weight:bold; display:inline-block; margin-top:8px;">Về ngay</a>
     </div>
+    <div id="failureScreen" style="display:none; text-align:center; padding:40px 0;">
+      <div style="width:120px; height:120px; margin:0 auto; background:#fff1f0; clip-path:polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%); display:flex; align-items:center; justify-content:center;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#ff4d4f" stroke-width="2" style="width:60px;height:60px;"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+      </div>
+      <h2 style="color:#ff4d4f; margin-top:24px; font-weight:700;">THANH TOÁN THẤT BẠI</h2>
+      <p id="failureMessage" style="color:#657786; margin-top:16px;">Giao dịch không thành công.</p>
+      <button id="retryBtn" style="margin-top:20px;padding:12px 24px;border:none;border-radius:10px;background:#1677ff;color:#fff;font-size:16px;cursor:pointer;">Thử lại</button>
+      <p style="margin-top:12px;"><a href="#" id="failureHomeBtn" style="color:#1677ff; text-decoration:underline; font-weight:bold;">Về ngay</a></p>
+    </div>
   </div>
 `;
 
@@ -44,6 +53,10 @@ const mainContent = document.getElementById("mainContent");
 const successScreen = document.getElementById("successScreen");
 const successCountdown = document.getElementById("successCountdown");
 const returnHomeBtn = document.getElementById("returnHomeBtn");
+const failureScreen = document.getElementById("failureScreen");
+const failureMessage = document.getElementById("failureMessage");
+const retryBtn = document.getElementById("retryBtn");
+const failureHomeBtn = document.getElementById("failureHomeBtn");
 let selectedMethod = null;
 let currentApptransid = null;
 let countdownInterval = null;
@@ -51,6 +64,13 @@ let successInterval = null;
 const countdownEl = document.getElementById("countdown");
 
 returnHomeBtn.onclick = (e) => {
+  e.preventDefault();
+  resetApp();
+};
+
+retryBtn.onclick = () => resetApp();
+
+failureHomeBtn.onclick = (e) => {
   e.preventDefault();
   resetApp();
 };
@@ -87,6 +107,7 @@ function resetApp() {
   clearInterval(successInterval);
   countdownEl.style.display = "none";
   successScreen.style.display = "none";
+  failureScreen.style.display = "none";
   mainContent.style.display = "block";
   statusEl.style.display = "block";
   payButton.disabled = true;
@@ -113,6 +134,39 @@ payButton.onclick = async () => {
   payButton.disabled = true;
   resetButton.disabled = true;
   debugEl.textContent = "";
+
+// stripe 
+if (selectedMethod === "stripe") {
+  try {
+    const res = await fetch("/stripe/create-order", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        amount: 50000, 
+        productName: "Stripe Integration Demo"
+      })
+    });
+    const data = await res.json();
+    debugEl.textContent = JSON.stringify(data, null, 2);
+
+    if (!res.ok) throw new Error(data.error || "Lỗi tạo đơn Stripe");
+
+    if (data.url) {
+      statusEl.innerHTML = `<strong>Stripe:</strong> Đang chuyển hướng...`;
+      statusEl.style.borderColor = "#52c41a";
+      window.location.href = data.url; // Chuyển hướng sang Stripe Checkout
+    } else {
+      throw new Error("Không nhận được url thanh toán từ Stripe");
+    }
+  } catch (err) {
+    statusEl.innerHTML = `<strong>Lỗi Stripe:</strong> ${err.message}`;
+    statusEl.style.borderColor = "#ff4d4f";
+    payButton.disabled = false;
+    resetButton.disabled = false;
+  }
+  return; // 
+}
+// end stripe selection
 
   if (selectedMethod !== "zalopay") {
     statusEl.innerHTML = `<strong>${selectedMethod.toUpperCase()}</strong> hiện chưa xử lý.`;
@@ -247,11 +301,20 @@ payButton.onclick = async () => {
   }
 };
 
+function clearStripeReturnParams() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("status");
+  url.searchParams.delete("session_id");
+  url.searchParams.delete("method");
+  window.history.replaceState({}, "", url.pathname + url.search);
+}
+
 function showSuccessScreen() {
   clearInterval(countdownInterval);
   mainContent.style.display = "none";
+  failureScreen.style.display = "none";
   successScreen.style.display = "block";
-  
+
   let timeLeft = 5;
   successCountdown.innerText = timeLeft;
   successInterval = setInterval(() => {
@@ -263,6 +326,63 @@ function showSuccessScreen() {
       successCountdown.innerText = timeLeft;
     }
   }, 1000);
+}
+
+function showFailureScreen(message) {
+  clearInterval(countdownInterval);
+  clearInterval(successInterval);
+  mainContent.style.display = "none";
+  successScreen.style.display = "none";
+  failureScreen.style.display = "block";
+  failureMessage.textContent = message || "Giao dịch không thành công.";
+}
+
+async function handleStripeReturn() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const status = urlParams.get("status");
+  const method = urlParams.get("method");
+  const sessionId = urlParams.get("session_id");
+
+  if (method !== "stripe") return;
+
+  clearStripeReturnParams();
+
+  if (status === "cancel") {
+    showFailureScreen("Bạn đã hủy giao dịch.");
+    return;
+  }
+
+  if (status !== "success") return;
+
+  if (!sessionId) {
+    showFailureScreen("Không tìm thấy mã phiên thanh toán.");
+    return;
+  }
+
+  mainContent.style.display = "block";
+  statusEl.style.display = "block";
+  statusEl.innerHTML = "<strong>Stripe:</strong> Đang xác minh thanh toán...";
+  statusEl.style.borderColor = "#faad14";
+
+  try {
+    const res = await fetch(
+      `/stripe/verify-session?session_id=${encodeURIComponent(sessionId)}`
+    );
+    const data = await res.json();
+
+    if (res.ok && data.verified) {
+      showSuccessScreen();
+      return;
+    }
+
+    const reason =
+      data.payment_status === "unpaid"
+        ? "Thanh toán chưa hoàn tất."
+        : data.error || "Không thể xác minh thanh toán.";
+    showFailureScreen(reason);
+  } catch (err) {
+    showFailureScreen(err.message || "Không thể xác minh thanh toán.");
+  }
 }
 
 async function pollStatus(apptransid) {
@@ -335,3 +455,8 @@ async function pollStatus(apptransid) {
 
 statusEl.innerHTML = "<strong>Trạng thái:</strong> Chưa chọn phương thức.";
 orderUrlEl.innerHTML = "";
+
+
+window.addEventListener("DOMContentLoaded", () => {
+  handleStripeReturn();
+});
