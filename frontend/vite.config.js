@@ -10,6 +10,7 @@ export default defineConfig({
       "/orderstatus": "http://localhost:3001",
       "/payment": "http://localhost:3001",
       "/stripe": "http://localhost:3001",
+      "/paypal": "http://localhost:3001",
     },
   },
 });
