@@ -49,8 +49,6 @@ const createZaloPayRouter = () => {
       embeddata: JSON.stringify(embeddata),
       amount: 50000,
       description: "Thanh toán đơn hàng ORD-001",
-      // Không truyền bankcode → ZaloPay Gateway hiện đầy đủ phương thức:
-      // ZaloPay QR, thẻ ATM, Visa/Master/JCB, chuyển khoản ngân hàng
       bankcode: "",
       callbackurl: config.callbackUrl,
     };
@@ -311,23 +309,7 @@ const createZaloPayRouter = () => {
   router.get("/orderstatus/:apptransid", handleOrderStatus);
   router.post("/orderstatus/:apptransid", handleOrderStatus);
 
-  router.post("/zalopay/cancel/:apptransid", (req, res) => {
-    const apptransid = req.params.apptransid;
-    if (!apptransid) {
-      return res.status(400).json({ message: "Thiếu apptransid" });
-    }
 
-    paymentStatuses[apptransid] = {
-      apptransid,
-      status: "failed",
-      returncode: -1,
-      returnmessage: "Giao dịch bị huỷ bởi người dùng.",
-      detail: { cancelledBy: "user", timestamp: Date.now() },
-    };
-
-    console.log("[ZaloPay] order cancelled by frontend:", apptransid);
-    return res.status(200).json({ ok: true, apptransid, status: "failed" });
-  });
 
   return router;
 };

@@ -28,7 +28,6 @@ app.innerHTML = `
       <div id="countdown" style="margin-top:12px; font-size:18px; font-weight:bold; color:#ff4d4f; text-align:center; display:none;"></div>
       <div id="qrContainer" style="margin-top:16px;display:flex;justify-content:center"></div>
       <div style="display:flex;justify-content:flex-end;gap:12px;margin-top:16px;">
-        <button id="resetButton" style="padding:12px 20px;border:none;border-radius:10px;background:#52c41a;color:#fff;font-size:16px;cursor:pointer">Về trang chủ</button>
         <button id="payButton" style="padding:12px 20px;border:none;border-radius:10px;background:#1677ff;color:#fff;font-size:16px;cursor:pointer" disabled>Thanh toán</button>
       </div>
       <pre id="debug" style="display:none;margin-top:20px;padding:16px;background:#001529;color:#fff;border-radius:12px;white-space:pre-wrap;min-height:140px"></pre>
@@ -61,7 +60,6 @@ const orderDetailsEl = document.getElementById("orderDetails");
 const orderUrlEl = document.getElementById("orderUrl");
 const qrContainer = document.getElementById("qrContainer");
 const payButton = document.getElementById("payButton");
-const resetButton = document.getElementById("resetButton");
 const debugEl = document.getElementById("debug");
 const mainContent = document.getElementById("mainContent");
 const successScreen = document.getElementById("successScreen");
@@ -71,7 +69,6 @@ const failureScreen = document.getElementById("failureScreen");
 const failureMessage = document.getElementById("failureMessage");
 const retryBtn = document.getElementById("retryBtn");
 let selectedMethod = null;
-let currentApptransid = null;
 let countdownInterval = null;
 let successInterval = null;
 let zalopayPollingActive = false;
@@ -108,13 +105,6 @@ methods.forEach((method) => {
 });
 
 function selectMethod(method, element) {
-  if (currentApptransid) {
-    if (selectedMethod === "zalopay") {
-      cancelZaloPayOrder(currentApptransid);
-    }
-    showFailureScreen("Giao dịch bị huỷ bởi người dùng.");
-    return;
-  }
 
   selectedMethod = method;
   payButton.disabled = false;
@@ -129,7 +119,6 @@ function selectMethod(method, element) {
 
 function resetApp() {
   selectedMethod = null;
-  currentApptransid = null;
   zalopayPollingActive = false;
   clearInterval(countdownInterval);
   clearInterval(successInterval);
@@ -153,21 +142,12 @@ function resetApp() {
   debugEl.textContent = "";
 }
 
-resetButton.onclick = async () => {
-  if (selectedMethod === "zalopay" && currentApptransid) {
-    await cancelZaloPayOrder(currentApptransid);
-    showFailureScreen("Giao dịch bị huỷ bởi người dùng.");
-    return;
-  }
-  resetApp();
-};
 
 payButton.onclick = async () => {
   if (!selectedMethod) return;
   statusEl.innerHTML = `<strong>Đang thực hiện:</strong> ${selectedMethod}`;
   statusEl.style.borderColor = "#faad14";
   payButton.disabled = true;
-  resetButton.disabled = true;
   debugEl.textContent = "";
 
   if (selectedMethod === "vnpay") {
@@ -191,8 +171,7 @@ payButton.onclick = async () => {
       statusEl.innerHTML = `<strong>Lỗi:</strong> ${err.message}`;
       statusEl.style.borderColor = "#ff4d4f";
       payButton.disabled = false;
-      resetButton.disabled = false;
-    }
+      }
     return;
   }
 
@@ -223,8 +202,7 @@ payButton.onclick = async () => {
       statusEl.innerHTML = `<strong>Lỗi Stripe:</strong> ${err.message}`;
       statusEl.style.borderColor = "#ff4d4f";
       payButton.disabled = false;
-      resetButton.disabled = false;
-    }
+      }
     return; //
   }
   // end stripe selection
@@ -255,8 +233,7 @@ payButton.onclick = async () => {
       statusEl.innerHTML = `<strong>Lỗi PayPal:</strong> ${err.message}`;
       statusEl.style.borderColor = "#ff4d4f";
       payButton.disabled = false;
-      resetButton.disabled = false;
-    }
+      }
     return;
   }
   // end paypal selection
@@ -265,7 +242,6 @@ payButton.onclick = async () => {
     statusEl.innerHTML = `<strong>${selectedMethod.toUpperCase()}</strong> hiện chưa xử lý.`;
     statusEl.style.borderColor = "#ff4d4f";
     payButton.disabled = false;
-    resetButton.disabled = false;
     return;
   }
 
@@ -296,8 +272,7 @@ payButton.onclick = async () => {
     statusEl.innerHTML = `<strong>Lỗi ZaloPay:</strong> ${err.message}`;
     statusEl.style.borderColor = "#ff4d4f";
     payButton.disabled = false;
-    resetButton.disabled = false;
-  }
+    }
 };
 
 async function cancelZaloPayOrder(apptransid) {
@@ -472,7 +447,7 @@ async function handleZaloPayReturn() {
     }
 
     // Thử lần 2 sau 3 giây (ZaloPay có thể chưa cập nhật ngay)
-    await new Promise((r) => setTimeout(r, 3000));
+    await new Promise((r) => setTimeout(r, 500));
     const res2 = await fetch(`/orderstatus/${encodeURIComponent(apptransid)}`);
     const data2 = await safeJson(res2);
 
@@ -530,8 +505,7 @@ orderUrlEl.innerHTML = "";
   } else {
     statusEl.innerHTML = "<strong>Thanh toán thất bại</strong> qua VNPay.";
     statusEl.style.borderColor = "#ff4d4f";
-    resetButton.disabled = false;
-  }
+    }
 })();
 
 // Xử lý khi VNPay redirect trình duyệt quay lại frontend (?vnpay_status=...&vnpay_txnRef=...)
@@ -566,8 +540,7 @@ orderUrlEl.innerHTML = "";
   } else {
     statusEl.innerHTML = "<strong>Thanh toán thất bại</strong> qua VNPay.";
     statusEl.style.borderColor = "#ff4d4f";
-    resetButton.disabled = false;
-  }
+    }
 })();
 
 // Gọi trực tiếp thay vì DOMContentLoaded vì Vite ESModule script đã được defer tự động
