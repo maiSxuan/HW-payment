@@ -164,42 +164,26 @@ const createZaloPayRouter = () => {
         result.returnmessage = "mac not equal";
       } else {
         const dataJson = JSON.parse(dataStr);
-        const callbackStatus = Number(dataJson.status);
         console.log(
           "[ZaloPay] callback success, apptransid:",
           dataJson.apptransid,
         );
         result.returncode = 1;
         result.returnmessage = "success";
-        result.callbackStatus = callbackStatus;
+
+        // Theo tài liệu ZaloPay v1, nhận được callback có MAC hợp lệ có nghĩa là giao dịch đã thành công.
+        paymentStatuses[dataJson.apptransid] = {
+          apptransid: dataJson.apptransid,
+          status: "success",
+          returncode: result.returncode,
+          returnmessage: result.returnmessage,
+          detail: dataJson,
+        };
       }
     } catch (ex) {
       console.error("[ZaloPay] Callback error:", ex.message);
       result.returncode = 0;
       result.returnmessage = ex.message;
-    }
-
-    if (body?.data) {
-      try {
-        const dataJson = JSON.parse(body.data);
-        const callbackStatus = Number(dataJson.status);
-        let frontendStatus = "failed";
-        if (callbackStatus === 1) frontendStatus = "success";
-        else if (callbackStatus === 2) frontendStatus = "processing";
-
-        paymentStatuses[dataJson.apptransid] = {
-          apptransid: dataJson.apptransid,
-          status: frontendStatus,
-          returncode: result.returncode,
-          returnmessage: result.returnmessage,
-          detail: dataJson,
-        };
-      } catch (err) {
-        console.warn(
-          "[ZaloPay] Không lưu được trạng thái callback:",
-          err.message,
-        );
-      }
     }
 
     res.json(result);
