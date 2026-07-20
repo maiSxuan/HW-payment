@@ -5,7 +5,7 @@ const CryptoJS = require("crypto-js");
 const moment = require("moment");
 const qs = require("qs");
 const path = require("path");
-require("dotenv").config({ path: path.join(__dirname, ".env") });
+require("dotenv").config({ path: path.resolve(__dirname, "../../.env") });
 
 const config = {
   appid: process.env.ZALO_APPID,

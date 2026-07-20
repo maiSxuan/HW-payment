@@ -1,7 +1,7 @@
 // backend/stripe/server.js
 const express = require("express");
 const path = require("path");
-require("dotenv").config({ path: path.join(__dirname, ".env") });
+require("dotenv").config({ path: path.resolve(__dirname, "../../.env") });
 
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
