@@ -13,8 +13,8 @@ const {
 } = require("vnpay");
 
 // URL của frontend (Vite dev server) để redirect người dùng quay lại sau khi thanh toán
-const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:3000";
-const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:3001";
+const CLIENT_URL = process.env.CLIENT_URL;
+const BACKEND_URL = process.env.BACKEND_URL;
 
 // Lưu trạng thái giao dịch tạm trong bộ nhớ để FE poll (giống pattern ZaloPay)
 const paymentStatuses = {};
