@@ -1,0 +1,40 @@
+services:
+  - type: web
+    name: hw-payment
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 18.20.0
+      - key: CLIENT_URL
+        sync: false
+      - key: BACKEND_URL
+        sync: false
+      - key: ZALO_APPID
+        sync: false
+      - key: ZALO_KEY1
+        sync: false
+      - key: ZALO_KEY2
+        sync: false
+      - key: ZALO_ENDPOINT
+        sync: false
+      - key: ZALO_CALLBACK_URL
+        sync: false
+      - key: ZALO_ORDER_STATUS_URL
+        sync: false
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_SECRET
+        sync: false
+      - key: PAYPAL_API_BASE
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: VNP_TMNCODE
+        sync: false
+      - key: VNP_HASHSECRET
+        sync: false
+      - key: VNP_HOST
+        sync: false
